@@ -1,0 +1,19 @@
+RESAMPLE / SHARPEN
+--
+convert -units PixelsPerInch ${1}.bmp -resample 450 -sharpen 0x3 ${1}.tiff
+convert -units PixelsPerInch Screenshot_0001.bmp -resample 300 Screenshot_0001.tiff
+
+TESSERACT
+--
+tesseract Screenshot_0008.sharpen.resample.negate.tif -c tessedit_dump_pageseg_images=true -l eng -psm 6 sharpen.resample.negate
+tesseract Screenshot_0008.sharpen.resample.negate.tif -l eng -c tessedit_dump_pageseg_images=true -psm 6 sharpen.resample.negate;
+
+LAT
+--
+./localthresh -m 3 -r 25 -b 30 -n yes original.resample.sharpen.negate.tif original.resample.sharpen.negate.thresholdLAT2.tif
+./localthresh -m 3 -r 50 -b 30 -n yes original.resample.sharpen.negate.tif original.resample.sharpen.negate.thresholdLAT3.tif
+
+CROPS
+--
+convert -crop 3811x2627+222+666 ${1}.tiff ${1}.prices.cropped.tiff
+convert -crop 1111x159+256+324 ${1}.tiff ${1}.name.cropped.tiff
