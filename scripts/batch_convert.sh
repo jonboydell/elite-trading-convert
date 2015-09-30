@@ -18,6 +18,21 @@ log () {
     fi
 }
 
+must_exist() {
+    if [ ! -d "${1}" ]; then
+        log "processor: fatal: directory ${1} must exist";
+        exit 1;
+    fi
+}
+
+should_exist() {
+    if [ ! -d "${1}" ]; then
+        log "processor: warning: directory ${1} doesn't exist, creating it";
+        mkdir "${1}";
+    fi
+}
+
+script_directory=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 input_directory="${1}"
 processing_directory="${2}"
 
@@ -29,15 +44,8 @@ touch ${log_file}
 
 pwd=`pwd`
 
-if [ ! -d "${input_directory}" ]; then
-    log "processor: fatal: directory ${input_directory} must exist";
-    exit 1;
-fi
-
-if [ ! -d "${processing_directory}" ]; then
-    log "processor: processing directory ${processing_directory} doesn't exist, creating it";
-    mkdir ${processing_directory};
-fi
+must_exist "${input_directory}"
+should_exist "${processing_directory}"
 
 log "processor: watching directory ${input_directory}";
 
@@ -45,6 +53,8 @@ while true; do
     find . | grep "${input_directory}" | grep bmp | while read f
     do
         if [ -e "${f}" ]; then
+            date_time=`date +"%Y%m%d-%H%M"`;
+
             filename=$(basename "${f}");
             file="${filename%%.*}";
             #echo "f:${pwd}/${f}";
@@ -53,19 +63,15 @@ while true; do
             fq_filename="${pwd}/${f}";
             #echo "fq_filename:${fq_filename}";
             #echo "processing_directory:${processing_directory}";
-            date_time=`date +"%Y%m%d-%H%M"`;
 
             working_directory="${processing_directory}/${date_time}${file}";
-
-            if [ ! -d "${working_directory}" ]; then
-                log "processor: working directory ${working_directory} doesn't exist, creating it";
-                mkdir ${working_directory};
-            fi
+            should_exist "${working_directory}"
 
             log "processor: moving file ${f} to ${working_directory}"
             mv "${f}" "${working_directory}"
+
             log "processor: starting conversion for ${f}"
-            ./convert/scripts/convert.sh "${working_directory}/${filename}" "${working_directory}" ${log_file} &
+            "${script_directory}/convert.sh" "${working_directory}/${filename}" "${working_directory}" ${log_file} &
         fi
     done
 

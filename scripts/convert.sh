@@ -22,6 +22,8 @@ if [ -d ${output_dir} ]; then
         convert -negate "${output_dir}/sharpen.tif" "${output_dir}/negate.tif"
         log "worker: threshold ${input_file}";
         convert -threshold 65% "${output_dir}/negate.tif" "${output_dir}/threshold65.tif"
+        log "worker: tesseract ${input_file}";
+        tesseract "${output_dir}/threshold65.tif" -l eng -c tessedit_dump_pageseg_images=true -psm 6 "${output_dir}/out";
         log "worker: complete ${input_file}";
     else
         log "worker: input file ${input_file} doesn't exist";
