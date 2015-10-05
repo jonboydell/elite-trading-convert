@@ -1,19 +1,29 @@
 #!/Users/jon.boydell/.nman/node/v4.1.0/bin/node
 var fs = require('fs');
 var commodity_list = require('./commodity_list');
+var log_file = fs.createWriteStream(__dirname + '/debug.log', {flags : 'w'});
 
-process.argv.forEach(function (val, index, array) {
-    if (index == 2) {
-        input_path = val;
-    }
-});
-
+var debug = true;
 var serial = 0;
-var stations = [];
 
-process_directory(input_path, commodity_list);
+if (process.argv.length != 3) {
 
-console.log(stations);
+    console.log("Must specifiy the name of the input file or directory");
+
+} else {
+
+    process.argv.forEach(function (val, index, array) {
+        if (index == 2) {
+            input_path = val;
+        }
+    });
+
+    var stations = [];
+
+    process_directory(input_path, commodity_list);
+
+    //console.log(stations);
+}
 
 function process_directory(input_path, commodity_list) {
     var files = fs.readdirSync(input_path);
@@ -23,89 +33,90 @@ function process_directory(input_path, commodity_list) {
         if (stats && stats.isDirectory()) {
             process_directory(file, commodity_list);
         } else if (stats && stats.isFile() && file.endsWith("out.txt")) {
-            stations.push(process_single_file(file, commodity_list));
+            stations.push(process_single_file(file, commodity_list, serial++));
         }
     }
 }
 
 function process_single_file(filename, commodity_list, serial) {
-    var data = fs.readFileSync(filename, 'utf8');
 
-    var output = new Object();
+    log_file.write("Processing ");
+    log_file.write(filename);
+    log_file.write("\n");
+
+    var data = fs.readFileSync(filename, 'utf8');
     var strings = data.split('\n');
 
     var station_name = strings[0];
-    console.log(station_name);
+
+    log_file.write("Station name ");
+    log_file.write(station_name);
+    log_file.write("\n");
+
+
+    var output = new Object();
     output.name = station_name;
     output.prices = [];
 
     strings.map(function(item) {
 
-        var itemx = prepString(item);
-        var o = firstNumber(itemx);
-        var commodity_name = itemx.substring(0, o).trim();
+        var current_string = prepare_string(item);
+        var matches = [];
 
-        if (commodity_name.length > 0) {
+        if (current_string.trim().length > 0 && current_string.split(" ").length > 1) {
+            if (debug) { console.log ("Processing line '%s'", current_string); }
 
             var found = commodity_list.find(function(element, index, array) {
-                if (element.trim().toLowerCase() == commodity_name.trim().toLowerCase()) {
+                var match = match_commodity(element, current_string, 80);
+                if (match) {
+                    matches.push(match);
                     return true;
                 }
-                return false;
-            }, commodity_name);
-
-            if (!found) {
-                found = commodity_list.find(function(element, index, array) {
-                    var matches = 0;
-                    for (var i = 0; i < commodity_name.length; i++) {
-                        if (element[i] == commodity_name[i]) {
-                            matches++;
-                        }
-                    }
-                    if ((matches / commodity_name.length) * 100 > 70) {
-                        console.log((matches / commodity_name.length) * 100);
-                        return true;
-                    }
-                    return false;
-                }, commodity_name);
-            }
+            }, current_string);
 
             if (found) {
                 var price = new Object();
                 price.name = found;
 
-                console.log("matched", found, commodity_name);
-                if (o > -1 && commodity_name.length > 0) {
+                var numbers_string = prepare_numbers(current_string.substring(found.length)).trim();
+                console.log("numbers part:", numbers_string);
+                if (!is_number(numbers_string[0])) {
+                    if (debug) { console.log ("Problem here", found, numbers_string)}
 
-                    var numbers = itemx.substring(firstNumber(itemx)).toUpperCase();
-                    numbers = numbers.replace(/O/g, '0');
-                    numbers = numbers.replace(/\./g, '');
-                    numbers = numbers.replace(/,/g, '');
-                    numbers = numbers.replace(/-/g, '');
+                    log_file.write("First number isn't a number ");
+                    log_file.write(found);
+                    log_file.write(current_string);
+                    log_file.write("\n");
 
-                    var t = [];
-                    var p = '';
-                    for (var x of numbers) {
-                        if (isNumber(x)) {
-                            p = p + x;
-                        } else {
-                            if (p.length > 0) {
-                                t.push(p);
-                            }
-                            p = '';
-                        }
-                    }
-                    if (t.length == 3) {
-                        price.sell = t[0];
+                } else {
+                    var numbers = [];
+                    var price_string = "";
+
+                    numbers = numbers_string.split(" ").filter(function (element, index, array) {
+                        return element.trim().length > 0;
+                    });
+
+                    if (numbers.length == 3) {
+                        price.sell = numbers[0];
                         price.buy = 0;
-                    } else if (t.length == 4) {
-                        price.sell = t[0];
-                        price.buy = t[1];
+                    } else if (numbers.length == 4) {
+                        price.sell = numbers[0];
+                        price.buy = numbers[1];
+                    } else {
+                        if (debug) { console.log ("Problem here", found, numbers_string)}
+                        log_file.write("Too many, or too few numbers extracted from the input ");
+                        log_file.write(found);
+                        log_file.write(current_string);
+                        log_file.write("\n");
                     }
+
                     output.prices.push(price);
                 }
+                if (debug) { console.log(price); }
             } else {
-                console.log("can't find match for ", commodity_name);
+                log_file.write("Couldn't find a match for ");
+                log_file.write(current_string);
+                log_file.write("\n");
             }
         }
     });
@@ -116,16 +127,15 @@ function process_single_file(filename, commodity_list, serial) {
         console.log(existing.prices);
         console.log(output.prices);
 
-        for (var o of output.prices) {
-            var commodity_name = o.name;
+        for (var price of output.prices) {
             existing.prices = existing.prices.filter(function (element, index, array) {
                 if (element.name == commodity_name) {
                     return false;
                 } else {
                     return true;
                 }
-            }, commodity_name);
-            existing.prices.push(o);
+            }, price.name);
+            existing.prices.push(price);
         }
         console.log(existing.prices);
         fs.writeFileSync(build_filename(station_name), JSON.stringify(existing));
@@ -142,12 +152,6 @@ function build_filename(station_name) {
     return file_name;
 }
 
-//function build_filename(station_name, serial) {
-//    var date = new Date();
-//    var file_name = "market/" + serial + "_" + station_name.replace(' ', '_').replace('\'', '').toLowerCase() + ".json";
-//    return file_name;
-//}
-
 function isNumberPart(chr) {
     var r = /[0-9,.]/g;
     var s = r.exec(chr);
@@ -157,7 +161,7 @@ function isNumberPart(chr) {
     return undefined;
 }
 
-function isNumber(chr) {
+function is_number(chr) {
     if (chr.length == 0) {
         return false;
     }
@@ -169,15 +173,65 @@ function isNumber(chr) {
     return undefined;
 }
 
-function firstNumber(str) {
-    return str.search(/[0-9]/g);
+function first_number(str) {
+    return str[0].search(/[0-9]/g);
 }
 
-function prepString(str) {
-    var s = str.replace('‘','').toUpperCase();
-    str = str.replace('\'', '');
-    str = str.replace('HIGH', '');
-    str = str.replace('LOW', '');
-    str = str.replace('MED', '');
-    return str;
+function last_letter(str) {
+    str = str.trim();
+    if (str.endsWith("CR")) {
+        str = str.substring(0, str.length-2);
+    }
+    for (var s of str) {
+        console.log(s, s.search(/[a-zA-Z ]/g));
+    }
+    return str.length;
+}
+
+function match_commodity(commodity_name_str, raw_data_str, confidence_factor) {
+    var commodity_name = commodity_name_str.trim().toUpperCase();
+    var raw_data = raw_data_str.trim().toUpperCase();
+    if (commodity_name == raw_data) { return 100; }
+    var matches = 0;
+    for (var i = 0; i < commodity_name.length; i++) {
+        if (commodity_name[i] == raw_data_str[i]) {
+            matches++;
+        }
+    }
+    var confidence = (matches / commodity_name.length) * 100;
+    if (confidence > confidence_factor) {
+        console.log("matching: %s %s% '%s'", commodity_name_str, confidence, raw_data_str);
+        return confidence;
+    }
+    return undefined;
+}
+
+function prepare_string(str) {
+    var retVal = str.replace('‘','')
+        .replace('\'', '')
+        .toUpperCase()
+        .trim();
+
+    if (retVal.endsWith("CR")) {
+        return retVal.substring(0, retVal.length-2).trim();
+    }
+    return retVal.trim();
+}
+
+function prepare_numbers(str) {
+    return str.toUpperCase()
+        .replace('HIGH', '')
+        .replace('LOW', '')
+        .replace('MED', '')
+        .replace('MEO', '')
+        .replace(/O/g, '0')
+        .replace(/G/g, '6')
+        .replace(/B/g, '8')
+        .replace(/\./g, '')
+        .replace(/,/g, '')
+        .replace(/-/g, '');
+}
+
+function equal_string(a, b) {
+    return a.toUpperCase().trim() == b.toUpperCase().trim();
 }

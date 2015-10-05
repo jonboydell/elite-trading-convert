@@ -3,6 +3,8 @@ output_dir=${2}
 log_file=${3}
 remove_intermediates=false
 
+script_directory=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
 log () {
     date_time=`date +"%Y%m%d-%H%M"`;
     message="${date_time}:${1}";
@@ -31,9 +33,9 @@ if [ -d ${output_dir} ]; then
 
         log "worker: tesseract ${input_file}";
         if [ "${remove_intermediates}" = true ]; then
-            tesseract "${output_dir}/crop.tif" -l eng "${output_dir}/out";
+            tesseract "${output_dir}/crop.tif" --user-words "${script_directory}/eng.user-words" -l eng "${output_dir}/out";
         else
-            tesseract "${output_dir}/crop.tif" -l eng -c tessedit_dump_pageseg_images=true "${output_dir}/out";
+            tesseract "${output_dir}/crop.tif" --user-words "${script_directory}/eng.user-words" -l eng -c tessedit_dump_pageseg_images=true -psm 4 "${output_dir}/out";
         fi
         log "worker: complete ${input_file}";
 
