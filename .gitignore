@@ -2,3 +2,4 @@
 node_modules
 batch_convert.log
 process_output
+debug.log
