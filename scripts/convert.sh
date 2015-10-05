@@ -1,6 +1,7 @@
 input_file=${1}
 output_dir=${2}
 log_file=${3}
+remove_intermediates=false
 
 log () {
     date_time=`date +"%Y%m%d-%H%M"`;
@@ -24,9 +25,25 @@ if [ -d ${output_dir} ]; then
         convert -threshold 65% "${output_dir}/negate.tif" "${output_dir}/threshold65.tif"
         log "worker: crop ${input_file}";
         convert -crop 3811x2864+200+383 "${output_dir}/threshold65.tif" "${output_dir}/crop.tif"
+        #log "worker: crop resample ${input_file}";
+        #convert -units PixelsPerInch -resample 450 "${output_dir}/crop.tif" "${output_dir}/resample.crop.tif"
+        #convert "${output_dir}/crop.tif" -gravity center -background white -extent 5000x5000 "${output_dir}/canvas.tif"
+
         log "worker: tesseract ${input_file}";
-        tesseract "${output_dir}/crop.tif" -l eng -c tessedit_dump_pageseg_images=true -psm 6 "${output_dir}/out";
+        if [ "${remove_intermediates}" = true ]; then
+            tesseract "${output_dir}/crop.tif" -l eng "${output_dir}/out";
+        else
+            tesseract "${output_dir}/crop.tif" -l eng -c tessedit_dump_pageseg_images=true "${output_dir}/out";
+        fi
         log "worker: complete ${input_file}";
+
+        if [ "${remove_intermediates}" = true ]; then
+            rm "${output_dir}/resample.tif"
+            rm "${output_dir}/sharpen.tif"
+            rm "${output_dir}/negate.tif"
+            rm "${output_dir}/threshold65.tif"
+            rm "${output_dir}/crop.tif"
+        fi
     else
         log "worker: input file ${input_file} doesn't exist";
         exit 1;

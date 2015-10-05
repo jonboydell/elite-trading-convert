@@ -50,7 +50,8 @@ should_exist "${processing_directory}"
 log "processor: watching directory ${input_directory}";
 
 while true; do
-    find . | grep "${input_directory}" | grep bmp | while read f
+    find "${input_directory}" | grep bmp | while read f
+
     do
         if [ -e "${f}" ]; then
             date_time=`date +"%Y%m%d-%H%M"`;
